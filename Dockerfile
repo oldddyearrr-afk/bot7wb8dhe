@@ -1,18 +1,7 @@
-# استخدام نسخة Alpine خفيفة جداً
-FROM python:3.11-alpine
-
-# تثبيت FFmpeg بأقل حجم ممكن وتحديث الشهادات
-RUN apk add --no-cache ffmpeg
-
-# تحديد مجلد العمل
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
-# تثبيت المكتبات
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# نسخ الكود
+RUN pip install -r requirements.txt
 COPY . .
-
-# تشغيل البوت
 CMD ["python", "main.py"]
