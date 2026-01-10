@@ -1,5 +1,5 @@
 import os, time, subprocess, threading, telebot
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from flask import Flask
 
 # --- الإعدادات ---
 TOKEN = '7957457845:AAGTe2_4avne8h5MxZCnEY8lCzACOTBKKxo'
@@ -9,9 +9,13 @@ URL = 'http://g.cuminx.xyz/SOFIANBENAISSA/X7KJL94/1339213?token=ShN0YQ0JGlhBVEk9
 
 bot = telebot.TeleBot(TOKEN)
 merge_bot = telebot.TeleBot(MERGE_BOT_TOKEN)
-
 is_running = False
 file_counter = 1
+
+# سيرفر ويب خفيف جداً لـ Render
+app = Flask(__name__)
+@app.route('/')
+def health(): return "Recording Bot Active", 200
 
 def snd_worker():
     global file_counter
@@ -22,16 +26,13 @@ def snd_worker():
                 f_name = files[0]
                 try:
                     with open(f_name, 'rb') as v:
-                        # 1. يرسل لك الفيديو للمشاهدة
-                        bot.send_video(ADMIN_ID, v, caption=f"🎥 مقطع {file_counter}\n⏳ جاري إرسال نسخة الحفظ...")
-                        
-                        # 2. يرسل "نسخة مستند" لبوت الدمج ليقوم بحفظها في سيرفره
+                        # إرسال لك وللبوت الثاني فوراً
+                        bot.send_video(ADMIN_ID, v, caption=f"🎥 مقطع {file_counter}")
                         v.seek(0)
                         merge_bot.send_document(ADMIN_ID, v, caption=f"SAVE:{file_counter}")
-                    
                     os.remove(f_name)
                     file_counter += 1
-                except Exception as e: print(f"Error: {e}")
+                except: pass
         time.sleep(1)
 
 @bot.message_handler(commands=['startlive'])
@@ -40,7 +41,7 @@ def start(message):
     if message.chat.id == ADMIN_ID:
         file_counter = 1
         is_running = True
-        bot.reply_to(message, "🎬 بدأ التسجيل.. انتظر علامة ✅ من بوت الدمج.")
+        bot.reply_to(message, "🎬 بدأ التسجيل...")
         threading.Thread(target=rec_worker, daemon=True).start()
 
 def rec_worker():
@@ -49,4 +50,6 @@ def rec_worker():
 
 if __name__ == "__main__":
     threading.Thread(target=snd_worker, daemon=True).start()
+    # تشغيل السيرفر على المنفذ المطلوب من Render
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))), daemon=True).start()
     bot.polling(non_stop=True)
