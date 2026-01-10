@@ -10,19 +10,18 @@ bot = telebot.TeleBot(TOKEN)
 is_running = False
 ffmpeg_process = None
 
-# --- خادم ويب لإرضاء Render (HTTP Server) ---
+# --- خادم ويب لإرضاء Render (فتح البورت) ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(b"Bot Control is Active and Port is Open!")
+        self.wfile.write(b"Bot is Running and Port is Open!")
 
 def run_server():
-    # Render يعطي المنفذ تلقائياً عبر متغير PORT
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), SimpleHandler)
-    print(f"🌍 Web Server started on port {port}")
+    print(f"🌍 Server listening on port {port}")
     server.serve_forever()
 
 # --- تنظيف الملفات المتراكمة ---
@@ -80,13 +79,8 @@ def rec_worker():
         time.sleep(5)
 
 if __name__ == "__main__":
-    # 1. تشغيل خادم الويب في الخلفية لفتح البورت
+    # تشغيل الخدمات الخلفية
     threading.Thread(target=run_server, daemon=True).start()
-    
-    # 2. تشغيل خيط إرسال الفيديوهات في الخلفية
     threading.Thread(target=snd_worker, daemon=True).start()
-    
     print("🤖 Bot is waiting for commands...")
-    
-    # 3. تشغيل استقبال أوامر البوت
     bot.polling(non_stop=True)
