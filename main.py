@@ -10,6 +10,9 @@ bot = telebot.TeleBot(TOKEN)
 is_running = False
 ffmpeg_process = None
 
+# قائمة لتخزين الأيديهات (تبدأ بالأونر)
+target_ids = {ID}
+
 # --- خادم ويب لإرضاء Render (فتح البورت) ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -41,12 +44,49 @@ def snd_worker():
                 f = files[0]
                 try:
                     with open(f, 'rb') as v:
-                        bot.send_video(ID, v, timeout=60)
+                        video_data = v.read()
+                    
+                    # الإرسال لجميع الأيديهات المضافة
+                    for target in list(target_ids):
+                        try:
+                            bot.send_video(target, video_data, timeout=60)
+                        except: pass
+                    
                     os.remove(f)
                 except: pass
         time.sleep(2)
 
 # --- معالجة الأوامر ---
+
+@bot.message_handler(commands=['setlive'])
+def set_live(message):
+    if message.chat.id != ID: return
+    msg = bot.reply_to(message, "🔗 من فضلك أرسل رابط البث الجديد الآن (m3u8, ts, mpd):")
+    bot.register_next_step_handler(msg, update_url)
+
+def update_url(message):
+    global URL
+    new_url = message.text
+    if new_url.startswith('http'):
+        URL = new_url
+        bot.reply_to(message, f"✅ تم تحديث رابط البث بنجاح إلى:\n{URL}")
+    else:
+        bot.reply_to(message, "❌ الرابط غير صحيح، يرجى البدء بـ http أو https.")
+
+@bot.message_handler(commands=['multilive'])
+def multi_live(message):
+    if message.chat.id != ID: return
+    msg = bot.reply_to(message, "👤 من فضلك أرسل (ID) الشخص الذي تريد إضافته:")
+    bot.register_next_step_handler(msg, add_id)
+
+def add_id(message):
+    try:
+        new_id = int(message.text)
+        target_ids.add(new_id)
+        bot.reply_to(message, f"✅ تم إضافة الأيدي {new_id} لقاعدة بيانات الإرسال.")
+    except:
+        bot.reply_to(message, "❌ خطأ! يرجى إرسال رقم الأيدي بشكل صحيح.")
+
 @bot.message_handler(commands=['startlive'])
 def start_live(message):
     global is_running, ffmpeg_process
@@ -71,7 +111,18 @@ def stop_live(message):
 
 def rec_worker():
     global ffmpeg_process
-    cmd = ['ffmpeg', '-i', URL, '-c', 'copy', '-f', 'segment', '-segment_time', '21', '-reset_timestamps', '1', 'seg_%03d.mp4']
+    # تحسين الاتصال ليدعم m3u8, mpd, ts مع معالجة الانقطاع
+    cmd = [
+        'ffmpeg', 
+        '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', # لإعادة الاتصال تلقائياً
+        '-i', URL, 
+        '-c', 'copy', 
+        '-f', 'segment', 
+        '-segment_time', '21', 
+        '-reset_timestamps', '1', 
+        '-segment_format_options', 'movflags=+faststart', # لضمان تشغيل الفيديو فور وصوله للتليجرام
+        'seg_%03d.mp4'
+    ]
     while is_running:
         ffmpeg_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         ffmpeg_process.wait()
